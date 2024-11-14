@@ -4,8 +4,6 @@ import type { Platform } from '@expo/config';
 import semver from 'semver';
 import { URL } from 'url';
 
-import { errorMessage } from './utils';
-
 export interface EasUpdate {
   /** The unique ID of the platform specific update */
   id: string;
@@ -34,11 +32,13 @@ export async function assertEasVersion(versionRange: string) {
   try {
     ({ stdout } = await getExecOutput(await which('eas', true), ['--version']));
   } catch {
-    throw new Error(`Could not verify the EAS CLI version, reason:\nCommand failed 'eas --version'`);
+    throw new Error(
+      `Could not verify the EAS CLI version, reason:\nCommand failed 'eas --version'`
+    );
   }
 
   const version = stdout.match(/eas-cli\/([^\s]+)/i);
-  if (!version || !version[1]) {
+  if (!version?.[1]) {
     throw new Error(`Could not verify the EAS CLI version, reason:\nUnexpected output received.`);
   }
 
@@ -60,8 +60,8 @@ export async function createUpdate(cwd: string, command: string): Promise<EasUpd
     ({ stdout } = await getExecOutput((await which('eas', true)) + ` ${command}`, undefined, {
       cwd,
     }));
-  } catch (error) {
-    throw new Error(`Could not create a new EAS Update, reason:\n${errorMessage(error)}`);
+  } catch (error: unknown) {
+    throw new Error(`Could not create a new EAS Update`, { cause: error });
   }
 
   return JSON.parse(stdout);
@@ -73,16 +73,25 @@ export async function createUpdate(cwd: string, command: string): Promise<EasUpd
 export function getUpdateGroupQr({
   projectId,
   updateGroupId,
-  appScheme,
+  appSlug,
+  qrTarget,
 }: {
   projectId: string;
   updateGroupId: string;
-  appScheme?: string;
+  appSlug: string;
+  qrTarget: 'expo-go' | 'dev-build';
 }): string {
   const url = new URL('https://qr.expo.dev/eas-update');
 
-  if (appScheme) {
-    url.searchParams.append('appScheme', appScheme);
+  if (qrTarget === 'dev-build') {
+    // While the parameter is called `appScheme`, it's actually the app's slug
+    // This should only be added when using dev clients as target
+    // See: https://github.com/expo/expo/blob/8ae75dde393e5d2393d446227a1fe2482c75eec3/packages/expo-dev-client/plugin/src/getDefaultScheme.ts#L17
+    url.searchParams.append('appScheme', appSlug.replace(/[^A-Za-z0-9+\-.]/g, ''));
+  }
+
+  if (process.env.EXPO_STAGING) {
+    url.searchParams.append('host', 'staging-u.expo.dev');
   }
 
   url.searchParams.append('projectId', projectId);
@@ -99,5 +108,6 @@ export function getUpdateGroupWebsite({
   projectId: string;
   updateGroupId: string;
 }): string {
-  return `https://expo.dev/projects/${projectId}/updates/${updateGroupId}`;
+  const baseUrl = process.env.EXPO_STAGING ? 'staging.expo.dev' : 'expo.dev';
+  return `https://${baseUrl}/projects/${projectId}/updates/${updateGroupId}`;
 }

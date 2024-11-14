@@ -1,10 +1,9 @@
-import { info, exportVariable } from '@actions/core';
+import { exportVariable, info } from '@actions/core';
 import { exec, getExecOutput } from '@actions/exec';
 import { which } from '@actions/io';
 import { ok as assert } from 'assert';
+import path from 'path';
 import { URL } from 'url';
-
-import { errorMessage } from './utils';
 
 export type CliName = 'expo' | 'eas';
 
@@ -26,6 +25,16 @@ export enum AppPlatform {
   Ios = 'IOS',
 }
 
+export enum BuildStatus {
+  New = 'NEW',
+  InQueue = 'IN_QUEUE',
+  InProgress = 'IN_PROGRESS',
+  PendingCancel = 'PENDING_CANCEL',
+  Errored = 'ERRORED',
+  Finished = 'FINISHED',
+  Canceled = 'CANCELED',
+}
+
 export type BuildInfo = {
   id: string;
   platform: AppPlatform;
@@ -35,12 +44,16 @@ export type BuildInfo = {
       name: string;
     };
   };
-  releaseChannel: string;
+  channel: string;
+  releaseChannel?: string;
   distribution: string;
   buildProfile: string;
+  runtimeVersion?: string;
   sdkVersion: string;
   appVersion: string;
   gitCommitHash: string;
+  expirationDate: string;
+  status: BuildStatus;
 };
 
 export const appPlatformDisplayNames: Record<AppPlatform, string> = {
@@ -97,8 +110,8 @@ export async function projectOwner(cli: CliName = 'expo'): Promise<string> {
 
   try {
     ({ stdout } = await getExecOutput(await which(cli), ['whoami'], { silent: true }));
-  } catch (error) {
-    throw new Error(`Could not fetch the project owner, reason:\n${errorMessage(error)}`);
+  } catch (error: unknown) {
+    throw new Error(`Could not fetch the project owner`, { cause: error });
   }
 
   if (!stdout) {
@@ -115,11 +128,15 @@ export async function runCommand(cmd: Command) {
   let stderr = '';
 
   try {
-    ({ stderr, stdout } = await getExecOutput(await which(cmd.cli), cmd.args.concat('--non-interactive'), {
-      silent: false,
-    }));
-  } catch (error) {
-    throw new Error(`Could not run command ${cmd.args.join(' ')}, reason:\n${errorMessage(error)}`);
+    ({ stderr, stdout } = await getExecOutput(
+      await which(cmd.cli),
+      cmd.args.concat('--non-interactive'),
+      {
+        silent: false,
+      }
+    ));
+  } catch (error: unknown) {
+    throw new Error(`Could not run command ${cmd.args.join(' ')}`, { cause: error });
   }
 
   return [stdout.trim(), stderr.trim()];
@@ -133,11 +150,77 @@ export async function easBuild(cmd: Command): Promise<BuildInfo[]> {
     ({ stdout } = await getExecOutput(await which('eas', true), args, {
       silent: false,
     }));
-  } catch (error) {
-    throw new Error(`Could not run command eas build, reason:\n${errorMessage(error)}`);
+  } catch (error: unknown) {
+    throw new Error(`Could not run command eas build`, { cause: error });
   }
 
   return JSON.parse(stdout);
+}
+
+/**
+ * Create an new EAS build using the user-provided command.
+ */
+export async function createEasBuildFromRawCommandAsync(
+  cwd: string,
+  command: string,
+  extraArgs: string[] = []
+): Promise<BuildInfo[]> {
+  let stdout = '';
+
+  let cmd = command;
+  if (!cmd.includes('--json')) {
+    cmd += ' --json';
+  }
+  if (!cmd.includes('--non-interactive')) {
+    cmd += ' --non-interactive';
+  }
+  if (!cmd.includes('--no-wait')) {
+    cmd += ' --no-wait';
+  }
+
+  try {
+    ({ stdout } = await getExecOutput((await which('eas', true)) + ` ${cmd}`, extraArgs, {
+      cwd,
+    }));
+  } catch (error: unknown) {
+    throw new Error(`Could not run command eas build`, { cause: error });
+  }
+
+  return JSON.parse(stdout);
+}
+
+/**
+ * Cancel an EAS build.
+ */
+export async function cancelEasBuildAsync(cwd: string, buildId: string): Promise<void> {
+  try {
+    await getExecOutput(await which('eas', true), ['build:cancel', buildId], { cwd });
+  } catch (error: unknown) {
+    info(`Failed to cancel build ${buildId}: ${String(error)}`);
+  }
+}
+
+/**
+ * Query the EAS BuildInfo from given buildId.
+ */
+export async function queryEasBuildInfoAsync(
+  cwd: string,
+  buildId: string
+): Promise<BuildInfo | null> {
+  try {
+    const { stdout } = await getExecOutput(
+      await which('eas', true),
+      ['build:view', buildId, '--json'],
+      {
+        cwd,
+        silent: true,
+      }
+    );
+    return JSON.parse(stdout);
+  } catch (error: unknown) {
+    info(`Failed to query eas build ${buildId}: ${String(error)}`);
+  }
+  return null;
 }
 
 /**
@@ -147,16 +230,46 @@ export async function projectInfo(dir: string): Promise<ProjectInfo> {
   let stdout = '';
 
   try {
-    ({ stdout } = await getExecOutput(await which('expo', true), ['config', '--json', '--type', 'prebuild'], {
-      cwd: dir,
-      silent: true,
-    }));
-  } catch (error) {
-    throw new Error(`Could not fetch the project info from ${dir}, reason:\n${errorMessage(error)}`);
+    ({ stdout } = await getExecOutput(
+      await which('expo', true),
+      ['config', '--json', '--type', 'prebuild'],
+      {
+        cwd: dir,
+        silent: true,
+      }
+    ));
+  } catch (error: unknown) {
+    throw new Error(`Could not fetch the project info from ${dir}`, { cause: error });
   }
 
   const { name, slug, owner } = JSON.parse(stdout);
   return { name, slug, owner };
+}
+
+/**
+ * Determine if the current project is using `dev-build` or `expo-go`.
+ * This is based on the `@expo/cli` check to enable dev client mode.
+ *
+ * @see https://github.com/expo/expo/blob/190a80f393bc730eb3f300df52d82b701e4b8ff5/packages/%40expo/cli/src/utils/analytics/getDevClientProperties.ts#L12-L15
+ */
+export function projectAppType(dir: string): 'expo-go' | 'dev-build' {
+  const packageFile = path.resolve(dir, 'package.json');
+  let packageJson: any = {};
+
+  try {
+    packageJson = require(packageFile);
+  } catch (error: unknown) {
+    throw new Error(`Could not load the project package file in: ${packageFile}`, { cause: error });
+  }
+
+  if (
+    packageJson?.dependencies?.['expo-dev-client'] ||
+    packageJson?.devDependencies?.['expo-dev-client']
+  ) {
+    return 'dev-build';
+  }
+
+  return 'expo-go';
 }
 
 /**
@@ -204,13 +317,9 @@ export function projectDeepLink(project: ProjectInfo, channel?: string): string 
 }
 
 export function getBuildLogsUrl(build: BuildInfo): string {
-  // TODO: reuse this function from the original source
-  // see: https://github.com/expo/eas-cli/blob/896f7f038582347c57dc700be9ea7d092b5a3a21/packages/eas-cli/src/build/utils/url.ts#L13-L21
   const { project } = build;
-  const path = project
-    ? `/accounts/${project.ownerAccount.name}/projects/${project.slug}/builds/${build.id}`
-    : `/builds/${build.id}`;
-
-  const url = new URL(path, 'https://expo.dev');
+  const path = `/accounts/${project.ownerAccount.name}/projects/${project.slug}/builds/${build.id}`;
+  const baseUrl = process.env.EXPO_STAGING ? 'staging.expo.dev' : 'expo.dev';
+  const url = new URL(path, `https://${baseUrl}`);
   return url.toString();
 }

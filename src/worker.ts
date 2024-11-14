@@ -4,8 +4,6 @@ import { ok as assert } from 'assert';
 import os from 'os';
 import path from 'path';
 
-import { errorMessage } from './utils';
-
 export { find as findTool, cacheDir as cacheTool } from '@actions/tool-cache';
 
 /**
@@ -54,9 +52,13 @@ export async function patchWatchers(): Promise<void> {
     await exec('sudo sysctl -p');
     info('Patched system watchers for the `ENOSPC` error.');
   } catch (error) {
-    warning(`Looks like we can't patch watchers/inotify limits, you might encouter the 'ENOSPC' error.`);
-    warning('For more info: https://github.com/expo/expo-github-action/issues/20, encountered error:');
-    warning(errorMessage(error));
+    warning(
+      `Looks like we can't patch watchers/inotify limits, you might encouter the 'ENOSPC' error.`
+    );
+    warning(
+      'For more info: https://github.com/expo/expo-github-action/issues/20, encountered error:'
+    );
+    warning(String(error));
   }
 }
 
@@ -71,6 +73,21 @@ export function tempPath(name: string, version: string): string {
  * @see https://github.com/actions/toolkit/blob/daf8bb00606d37ee2431d9b1596b88513dcf9c59/packages/tool-cache/src/tool-cache.ts#L747-L749
  */
 export function toolPath(name: string, version: string): string {
-  assert(process.env['RUNNER_TOOL_CACHE'], 'Could not resolve the local tool cache, RUNNER_TOOL_CACHE not defined');
+  assert(
+    process.env['RUNNER_TOOL_CACHE'],
+    'Could not resolve the local tool cache, RUNNER_TOOL_CACHE not defined'
+  );
   return path.join(process.env['RUNNER_TOOL_CACHE'], name, version, os.arch());
+}
+
+/**
+ * Add extra `searchPath` to the global search path for require()
+ */
+export function addGlobalNodeSearchPath(searchPath: string) {
+  const nodePath = process.env['NODE_PATH'] || '';
+  const delimiter = process.platform === 'win32' ? ';' : ':';
+  const nodePaths = nodePath.split(delimiter);
+  nodePaths.push(searchPath);
+  process.env['NODE_PATH'] = nodePaths.join(delimiter);
+  require('module').Module._initPaths();
 }

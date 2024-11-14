@@ -33,7 +33,7 @@
 ## What's inside?
 
 With this Expo action, you have full access to [Expo CLI][link-expo-cli] and [EAS CLI][link-eas-cli].
-It lets you automate the `expo publish` or `eas build` commands, leaving you with more time to work on your project.
+It lets you automate the `eas update` or `eas build` commands, leaving you with more time to work on your project.
 Some additional features are included to make the usage of this action as simple as possible, like caching and authentication.
 
 ## Configuration options
@@ -45,11 +45,9 @@ Here is a summary of all the input options you can use.
 
 | variable           | default | description                                                                                   |
 | ------------------ | ------- | --------------------------------------------------------------------------------------------- |
-| **expo-version**   | -       | Expo CLI version to install _(skips when omitted)_                                            |
-| **expo-cache**     | `true`  | If it should use the GitHub actions cache ([read more](#using-the-built-in-cache))            |
 | **eas-version**    | -       | EAS CLI version to install _(skips when omitted)_                                             |
 | **eas-cache**      | `true`  | If it should use the GitHub actions cache ([read more](#using-the-built-in-cache))            |
-| **packager**       | `yarn`  | Package manager to use _(e.g. `yarn` or `npm`)_                                               |
+| **packager**       | `yarn`  | Package manager to use _(e.g. `bun`, `yarn`, or `npm`)_                                               |
 | **token**          | -       | Token of your Expo account - [get your token][link-expo-token] _(use with [secrets][link-actions-secrets])_                  |
 | **patch-watchers** | `true`  | If it should patch the `fs.inotify.*` limits on Ubuntu ([read more](#enospc-errors-on-linux)) |
 
@@ -165,7 +163,7 @@ jobs:
       - name: 🏗 Setup EAS
         uses: expo/expo-github-action@v8
         with:
-          expo-version: latest
+          eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: 📦 Install dependencies
@@ -174,7 +172,9 @@ jobs:
       - name: 🚀 Create preview
         uses: expo/expo-github-action/preview@v8
         with:
-          command: eas update --auto
+          # `github.event.pull_request.head.ref` is only available on `pull_request` triggers.
+          # Use your own, or keep the automatically inferred branch name from `--auto`, when using different triggers.
+          command: eas update --auto --branch ${{ github.event.pull_request.head.ref }}
 ```
 
 ## Things to know

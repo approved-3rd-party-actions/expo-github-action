@@ -1,12 +1,14 @@
 {
-  "extends": "@tsconfig/node16",
+  "extends": "@tsconfig/node20",
   "compilerOptions": {
-    "outDir": "./build",
-    "rootDir": "./src"
+    "strict": true,
+    "noEmit": true,
+    "rootDir": "./src",
+    "module": "CommonJS",
+    "moduleResolution": "node"
   },
   "exclude": [
     "build",
     "node_modules",
-    "tests/**"
   ]
 }

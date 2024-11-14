@@ -1,7 +1,14 @@
-import { getBooleanInput, getInput, setOutput, group, setFailed, info } from '@actions/core';
+import { getBooleanInput, getInput, group, info, setFailed, setOutput } from '@actions/core';
 import { ExpoConfig } from '@expo/config';
 
-import { assertEasVersion, createUpdate, EasUpdate, getUpdateGroupQr, getUpdateGroupWebsite } from '../eas';
+import { getQrTarget, getSchemesInOrderFromConfig } from '../comment';
+import {
+  EasUpdate,
+  assertEasVersion,
+  createUpdate,
+  getUpdateGroupQr,
+  getUpdateGroupWebsite,
+} from '../eas';
 import { createIssueComment, hasPullContext, pullContext } from '../github';
 import { loadProjectConfig } from '../project';
 import { template } from '../utils';
@@ -10,12 +17,19 @@ import { executeAction } from '../worker';
 export const MESSAGE_ID = 'projectId:{projectId}';
 
 export function previewInput() {
+  const qrTarget = getInput('qr-target') || undefined;
+  if (qrTarget && !['expo-go', 'dev-client'].includes(qrTarget)) {
+    throw new Error(`Invalid QR code target: "${qrTarget}", expected "expo-go" or "dev-build"`);
+  }
+
   return {
     command: getInput('command'),
     shouldComment: !getInput('comment') || getBooleanInput('comment'),
     commentId: getInput('comment-id') || MESSAGE_ID,
     workingDirectory: getInput('working-directory'),
     githubToken: getInput('github-token'),
+    // Note, `dev-build` is prefered, but `dev-client` is supported to aovid confusion
+    qrTarget: qrTarget as undefined | 'expo-go' | 'dev-build' | 'dev-client',
   };
 }
 
@@ -30,7 +44,9 @@ export async function previewAction(input = previewInput()) {
   // Create the update before loading project information.
   // When the project needs to be set up, EAS project ID won't be available before this command.
   const command = sanitizeCommand(input.command);
-  const updates = await group(`Run eas ${command}"`, () => createUpdate(input.workingDirectory, command));
+  const updates = await group(`Run eas ${command}"`, () =>
+    createUpdate(input.workingDirectory, command)
+  );
 
   const update = updates.find(update => !!update);
   if (!update) {
@@ -42,7 +58,7 @@ export async function previewAction(input = previewInput()) {
     return setFailed(`Missing 'extra.eas.projectId' in app.json or app.config.js.`);
   }
 
-  const variables = getVariables(config, updates);
+  const variables = getVariables(config, updates, input);
   const messageId = template(input.commentId, variables);
   const messageBody = createSummary(updates, variables);
 
@@ -95,22 +111,31 @@ function sanitizeCommand(input: string): string {
 /**
  * Generate useful variables for the message body, and as step outputs.
  */
-export function getVariables(config: ExpoConfig, updates: EasUpdate[]) {
+export function getVariables(
+  config: ExpoConfig,
+  updates: EasUpdate[],
+  options: ReturnType<typeof previewInput>
+) {
   const projectId: string = config.extra?.eas?.projectId;
   const android = updates.find(update => update.platform === 'android');
   const ios = updates.find(update => update.platform === 'ios');
+
+  const appSchemes = getSchemesInOrderFromConfig(config) || [];
+  const appSlug = config.slug;
+  const qrTarget = getQrTarget(options);
 
   return {
     // EAS / Expo specific
     projectId,
     projectName: config.name,
-    projectSlug: config.slug,
-    projectScheme: config.scheme || '',
+    projectSlug: appSlug,
+    projectScheme: appSchemes[0] || '', // This is the longest scheme from one or more custom app schemes
+    projectSchemes: JSON.stringify(appSchemes), // These are all custom app schemes, in order from longest to shortest as JSON
     // Shared update properties
     // Note, only use these properties when the update groups are identical
     groupId: updates[0].group,
     runtimeVersion: updates[0].runtimeVersion,
-    qr: getUpdateGroupQr({ projectId, updateGroupId: updates[0].group, appScheme: config.scheme }),
+    qr: getUpdateGroupQr({ projectId, updateGroupId: updates[0].group, appSlug, qrTarget }),
     link: getUpdateGroupWebsite({ projectId, updateGroupId: updates[0].group }),
     // These are safe to access regardless of the update groups
     branchName: updates[0].branch,
@@ -121,17 +146,21 @@ export function getVariables(config: ExpoConfig, updates: EasUpdate[]) {
     androidId: android?.id || '',
     androidGroupId: android?.group || '',
     androidBranchName: android?.branch || '',
+    androidManifestPermalink: android?.manifestPermalink || '',
     androidMessage: android?.message || '',
     androidRuntimeVersion: android?.runtimeVersion || '',
-    androidQR: android ? getUpdateGroupQr({ projectId, updateGroupId: android.group, appScheme: config.scheme }) : '',
+    androidQR: android
+      ? getUpdateGroupQr({ projectId, updateGroupId: android.group, appSlug, qrTarget })
+      : '',
     androidLink: android ? getUpdateGroupWebsite({ projectId, updateGroupId: android.group }) : '',
     // iOS update
     iosId: ios?.id || '',
     iosGroupId: ios?.group || '',
     iosBranchName: ios?.branch || '',
+    iosManifestPermalink: ios?.manifestPermalink || '',
     iosMessage: ios?.message || '',
     iosRuntimeVersion: ios?.runtimeVersion || '',
-    iosQR: ios ? getUpdateGroupQr({ projectId, updateGroupId: ios.group, appScheme: config.scheme }) : '',
+    iosQR: ios ? getUpdateGroupQr({ projectId, updateGroupId: ios.group, appSlug, qrTarget }) : '',
     iosLink: ios ? getUpdateGroupWebsite({ projectId, updateGroupId: ios.group }) : '',
   };
 }
@@ -157,13 +186,15 @@ function createSummaryHeader(updates: EasUpdate[], vars: ReturnType<typeof getVa
     .map(platform => `**${platform}**`)
     .join(', ');
 
-  const appScheme = vars.projectScheme ? `- Scheme → **${vars.projectScheme}**` : '';
+  const appSchemes = vars.projectScheme
+    ? `- Scheme → **${JSON.parse(vars.projectSchemes).join('**, **')}**`
+    : '';
 
   return `🚀 Expo preview is ready!
 
 - Project → **${vars.projectSlug}**
 - ${platformName} → ${platformValue}
-${appScheme}`.trim();
+${appSchemes}`.trim();
 }
 
 function createSingleQrSummary(updates: EasUpdate[], vars: ReturnType<typeof getVariables>) {

@@ -1,4 +1,4 @@
-import { resolvePackage } from '../src/packager';
+import { resolvePackage } from '../packager';
 
 describe(resolvePackage, () => {
   it('resolves expo-cli@^2.0.0 to 2.21.2', async () => {
@@ -18,9 +18,9 @@ describe(resolvePackage, () => {
   });
 
   it('rejects donotpublishthispackageoryouwillbefired with proper error', async () => {
-    await expect(resolvePackage('donotpublishthispackageoryouwillbefired', 'latest')).rejects.toThrow(
-      'Could not resolve'
-    );
+    await expect(
+      resolvePackage('donotpublishthispackageoryouwillbefired', 'latest')
+    ).rejects.toThrow('Could not resolve');
   });
 
   it('rejects expo-cli@9999999 with proper error', async () => {

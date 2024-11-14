@@ -11,7 +11,7 @@ on:
 
 concurrency:
   group: release
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   dryrun:
@@ -19,19 +19,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 🏗 Setup repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: 🏗 Setup Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: 16.x
-          cache: yarn
+      - name: 🏗 Setup runner
+        uses: ./.github/actions/setup
 
       - name: 📦 Install dependencies
-        run: yarn install --frozen-lockfile
+        run: bun install
 
       - name: 📋 Dry-running release
-        run: yarn semantic-release --dry-run
+        run: bun semantic-release --dry-run
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
@@ -40,46 +37,48 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 🏗 Setup repo
-        uses: actions/checkout@v3
-
-      - name: 🏗 Setup Node
-        uses: actions/setup-node@v3
+        uses: actions/checkout@v4
         with:
-          node-version: 16.x
-          cache: yarn
+          token: ${{ secrets.EXPOBOT_GITHUB_TOKEN }}
+
+      - name: 🏗 Setup runner
+        uses: ./.github/actions/setup
 
       - name: 📦 Install dependencies
-        run: yarn install --frozen-lockfile
+        run: bun install
 
       - name: 📋 Release code
-        run: yarn semantic-release
+        run: bun semantic-release
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.EXPOBOT_GITHUB_TOKEN }}
+          GIT_AUTHOR_NAME: Expo CI
+          GIT_AUTHOR_EMAIL: support+ci@expo.dev
+          GIT_COMMITTER_NAME: Expo CI
+          GIT_COMMITTER_EMAIL: support+ci@expo.dev
 
   tags:
     needs: publish
     runs-on: ubuntu-latest
     steps:
       - name: 🏗 Setup repo
-        uses: actions/checkout@v3
-
-      - name: 🏗 Setup Node
-        uses: actions/setup-node@v3
+        uses: actions/checkout@v4
         with:
-          node-version: 16.x
-          cache: yarn
+          token: ${{ secrets.EXPOBOT_GITHUB_TOKEN }}
+
+      - name: 🏗 Setup runner
+        uses: ./.github/actions/setup
 
       - name: 👷 Force repo to latest
-        runs: git fetch --all && git pull
+        run: git fetch --all && git pull
 
       - name: 📦 Install dependencies
-        run: yarn install --frozen-lockfile
+        run: bun install
 
       - name: 📦 Install semver
-        run: yarn add --dev semver
+        run: bun add --dev semver
 
       - name: 🕵️ Resolve major version
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         id: version
         with:
           result-encoding: string
@@ -87,6 +86,11 @@ jobs:
             const semver = require('semver')
             const { version } = require('./package.json')
             return semver.major(version)
+
+      - name: 👷 Configure git
+        run: |
+          git config user.name "Expo CI"
+          git config user.email "support+ci@expo.dev"
 
       - name: 🧹 Clean repo
         run: git clean . -xdf && git reset --hard HEAD && git pull && git fetch --tags

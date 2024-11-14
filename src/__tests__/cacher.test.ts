@@ -1,9 +1,9 @@
 import * as cache from '@actions/cache';
 import os from 'os';
 
-import { cacheKey, restoreFromCache, saveToCache } from '../src/cacher';
-import { toolPath } from '../src/worker';
 import { resetEnv, setEnv } from './utils';
+import { cacheKey, restoreFromCache, saveToCache } from '../cacher';
+import { toolPath } from '../worker';
 
 jest.mock('@actions/cache');
 jest.mock('@actions/core');
@@ -34,25 +34,29 @@ describe(restoreFromCache, () => {
   it('skips when cache is unavailable', async () => {
     jest.mocked(cache.isFeatureAvailable).mockReturnValue(false);
     jest.mocked(cache.restoreCache).mockRejectedValue(new Error('Cache service url not found'));
-    await expect(restoreFromCache('expo-cli', '5.0.3', 'yarn')).resolves.toBeUndefined();
+    await expect(restoreFromCache('expo-cli', '5.0.3', 'yarn')).resolves.toBeNull();
   });
 
   it('throws when cache has unexpected error', async () => {
     jest.mocked(cache.isFeatureAvailable).mockReturnValue(true);
     jest.mocked(cache.restoreCache).mockRejectedValue(new Error('Node registry is down'));
-    await expect(restoreFromCache('expo-cli', '5.0.3', 'yarn')).rejects.toThrow('Node registry is down');
+    await expect(restoreFromCache('expo-cli', '5.0.3', 'yarn')).rejects.toThrow(
+      'Node registry is down'
+    );
   });
 
   it('returns expo-cli path from cache when available', async () => {
     jest.mocked(cache.isFeatureAvailable).mockReturnValue(true);
     jest.mocked(cache.restoreCache).mockResolvedValue('fake/path');
-    await expect(restoreFromCache('expo-cli', '5.0.3', 'yarn')).resolves.toBe(toolPath('expo-cli', '5.0.3'));
+    await expect(restoreFromCache('expo-cli', '5.0.3', 'yarn')).resolves.toBe(
+      toolPath('expo-cli', '5.0.3')
+    );
   });
 
   it('returns nothing when cache is empty', async () => {
     jest.mocked(cache.isFeatureAvailable).mockReturnValue(true);
     jest.mocked(cache.restoreCache).mockResolvedValue(undefined);
-    await expect(restoreFromCache('eas-cli', '0.46.2', 'npm')).resolves.toBeUndefined();
+    await expect(restoreFromCache('eas-cli', '0.46.2', 'npm')).resolves.toBeNull();
   });
 });
 

@@ -1,7 +1,7 @@
-import { getOctokit, context } from '@actions/github';
+import { context, getOctokit } from '@actions/github';
 import { ok as assert } from 'assert';
 
-type IssueContext = typeof context['issue'];
+type IssueContext = (typeof context)['issue'];
 
 type IssueCommentContext = IssueContext & {
   comment_id?: number;
@@ -77,7 +77,10 @@ export async function createIssueComment(options: AuthContext & IssueContext & C
  */
 export function githubApi(options: AuthContext = {}): ReturnType<typeof getOctokit> {
   const token = process.env['GITHUB_TOKEN'] || options.token;
-  assert(token, `This step requires 'github-token' or a GITHUB_TOKEN environment variable to create comments`);
+  assert(
+    token,
+    `This step requires 'github-token' or a GITHUB_TOKEN environment variable to create comments`
+  );
   return getOctokit(token);
 }
 
@@ -140,4 +143,55 @@ export function issueComment() {
       comment_id: context.payload?.comment?.id,
     },
   ] as const;
+}
+
+/**
+ * Get the commit message for a specific commit hash.
+ */
+export async function getGitCommandMessageAsync(
+  options: AuthContext,
+  gitCommitHash: string
+): Promise<string> {
+  const github = githubApi({ token: options.token });
+  const result = await github.rest.git.getCommit({
+    ...context.repo,
+    commit_sha: gitCommitHash,
+  });
+  return result.data.message;
+}
+
+/**
+ * Get the default branch for the repository.
+ */
+export function getRepoDefaultBranch(): string | undefined {
+  return context.payload?.repository?.default_branch;
+}
+
+/**
+ * True if the current event is a push to the target branch.
+ *
+ * @param targetBranch The branch to compare against.
+ */
+export function isPushBranchContext(targetBranch: string) {
+  return context.eventName === 'push' && context.ref === `refs/heads/${targetBranch}`;
+}
+
+/**
+ * Get the pull request information that associated with a specific commit hash.
+ */
+export async function getPullRequestFromGitCommitShaAsync(
+  options: AuthContext,
+  gitCommitHash: string
+) {
+  const github = githubApi({ token: options.token });
+  const results = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+    ...context.repo,
+    commit_sha: gitCommitHash,
+  });
+  return results.data.map(pr => ({
+    id: pr.id,
+    prNumber: pr.number,
+    prHeadCommitSha: pr.head.sha,
+    mergeCommitSha: pr.merge_commit_sha,
+  }));
 }

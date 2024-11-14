@@ -1,7 +1,6 @@
 import { exec, getExecOutput } from '@actions/exec';
 import { mkdirP } from '@actions/io';
 
-import { errorMessage } from './utils';
 import { cacheTool, tempPath } from './worker';
 
 /**
@@ -13,9 +12,11 @@ export async function resolvePackage(name: string, range: string): Promise<strin
   let stdout = '';
 
   try {
-    ({ stdout } = await getExecOutput('npm', ['info', `${name}@${range}`, 'version', '--json'], { silent: true }));
-  } catch (error) {
-    throw new Error(`Could not resolve ${name}@${range}, reason:\n${errorMessage(error)}`);
+    ({ stdout } = await getExecOutput('npm', ['info', `${name}@${range}`, 'version', '--json'], {
+      silent: true,
+    }));
+  } catch (error: unknown) {
+    throw new Error(`Could not resolve ${name}@${range}`, { cause: error });
   }
 
   // thanks npm, for returning a "" json string value for invalid versions

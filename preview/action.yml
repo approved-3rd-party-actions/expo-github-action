@@ -6,7 +6,7 @@ branding:
   icon: smartphone
   color: gray-dark
 runs:
-  using: node16
+  using: node20
   main: ../build/preview/index.js
 inputs:
   command:
@@ -18,6 +18,9 @@ inputs:
     default: true
   comment-id:
     description: unique id template to prevent duplicate comments
+  qr-target:
+    description: How the EAS Update is opened through the QR code, either `dev-build` or `expo-go`. Defaults to `dev-build` if `expo-dev-client` is used in project.
+    required: false
   working-directory:
     description: The relative directory of your Expo app
     required: false
@@ -26,6 +29,11 @@ inputs:
     description: GitHub token to use when commenting on PR
     required: false
     default: ${{ github.token }}
+  # Below are deprecated and won't be supported anymore
+  app-scheme:
+    deprecated: true
+    description: The (custom) app scheme to use when creating the preview QR code
+    required: false
 outputs:
   projectId:
     description: The resolved EAS project ID

@@ -42,27 +42,29 @@ It can help speed up the review process by letting the reviewer load the app dir
 This action is customizable through variables defined in the [`action.yml`](action.yml).
 Here is a summary of all the input options you can use.
 
-| variable              | default                     | description                                                                                    |
-| --------------------- | --------------------------- | ---------------------------------------------------------------------------------------------- |
-| **command**           | -                           | EAS CLI command to run when creating updates                                                   |
-| **working-directory** | -                           | The relative directory of your Expo app                                                        |
-| **comment**           | `true`                      | If the action should summarize the EAS Update information as comment on a pull request         |
-| **comment-id**        | _[see code][code-defaults]_ | unique id template to prevent duplicate comments ([read more](#preventing-duplicate-comments)) |
-| **github-token**      | `github.token`              | GitHub token to use when commenting on PR ([read more](#github-tokens))                        |
+| variable              | default                     | description                                                                                                                                                                      |
+| --------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **command**           | -                           | EAS CLI command to run when creating updates                                                                                                                                     |
+| **working-directory** | -                           | The relative directory of your Expo app                                                                                                                                          |
+| **comment**           | `true`                      | If the action should summarize the EAS Update information as comment on a pull request                                                                                           |
+| **comment-id**        | _[see code][code-defaults]_ | Unique id template to prevent duplicate comments ([read more](#preventing-duplicate-comments))                                                                                   |
+| **qr-target**         | _inferred from project_     | Either `dev-build` or `expo-go`, affects how the EAS Update is opened through the QR code. <br /> Defaults to `dev-build` when `expo-dev-client` is detected within the project. |
+| **github-token**      | `github.token`              | GitHub token to use when commenting on PR ([read more](#github-tokens))                                                                                                          |
 
 ## Available outputs
 
 There are a few variables available that you can use to set up your own notifications.
 These variables are strings; some may be empty because of your project configuration.
 
-| output name       | description                                                                                       |
-| ----------------- | ------------------------------------------------------------------------------------------------- |
-| **projectId**     | The resolved EAS project ID                                                                       |
-| **projectName**   | The name of your project ([read more](https://docs.expo.dev/versions/latest/config/app/#name))    |
-| **projectSlug**   | The slug of your project ([read more](https://docs.expo.dev/versions/latest/config/app/#slug))    |
-| **projectScheme** | The (custom) app scheme ([read more](https://docs.expo.dev/versions/latest/config/app/#scheme))   |
-| **commentId**     | The unique comment ID to prevent duplicate comments ([read more](#preventing-duplicate-comments)) |
-| **comment**       | The comment with information about the updates                                                    |
+| output name        | description                                                                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **projectId**      | The resolved EAS project ID                                                                                                                      |
+| **projectName**    | The name of your project ([read more](https://docs.expo.dev/versions/latest/config/app/#name))                                                   |
+| **projectSlug**    | The slug of your project ([read more](https://docs.expo.dev/versions/latest/config/app/#slug))                                                   |
+| **projectScheme**  | The longest (custom) app scheme ([read more](https://docs.expo.dev/versions/latest/config/app/#scheme))                                          |
+| **projectSchemes** | All (custom) app schemes in order of longest to shortest, as JSON string ([read more](https://docs.expo.dev/versions/latest/config/app/#scheme)) |
+| **commentId**      | The unique comment ID to prevent duplicate comments ([read more](#preventing-duplicate-comments))                                                |
+| **comment**        | The comment with information about the updates                                                                                                   |
 
 ### Update information
 
@@ -84,30 +86,32 @@ Some of the EAS Update variables can be shared for all platforms if the [runtime
 These variables contain Android-specific update information.
 When skipping the Android update, these variables are empty strings.
 
-| output name               | description                                                                                                                            |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| **androidId**             | Android-specific update id                                                                                                             |
-| **androidGroupId**        | Update group ID that contains one or more platform-specific updates                                                                    |
-| **androidBranchName**     | Branch name that was used when creating this update ([read more](https://docs.expo.dev/eas-update/getting-started/#publish-an-update)) |
-| **androidMessage**        | Custom message to describe the Android-specific update                                                                                 |
-| **androidRuntimeVersion** | Runtime version used for the Android-specific update ([read more](https://docs.expo.dev/eas-update/runtime-versions/))                 |
-| **androidQR**             | Absolute URL to the QR code to load this Android-specific update                                                                       |
-| **androidLink**           | Absolute URL to the Android-specific update on [expo.dev](https://expo.dev)                                                            |
+| output name                  | description                                                                                                                            |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **androidId**                | Android-specific update id                                                                                                             |
+| **androidGroupId**           | Update group ID that contains one or more platform-specific updates                                                                    |
+| **androidBranchName**        | Branch name that was used when creating this update ([read more](https://docs.expo.dev/eas-update/getting-started/#publish-an-update)) |
+| **andriodManifestPermalink** | Absolute URL to the Android-specific update manifest                                                                                   |
+| **androidMessage**           | Custom message to describe the Android-specific update                                                                                 |
+| **androidRuntimeVersion**    | Runtime version used for the Android-specific update ([read more](https://docs.expo.dev/eas-update/runtime-versions/))                 |
+| **androidQR**                | Absolute URL to the QR code to load this Android-specific update                                                                       |
+| **androidLink**              | Absolute URL to the Android-specific update on [expo.dev](https://expo.dev)                                                            |
 
 #### iOS-specific update information
 
 These variables contain iOS-specific update information.
 When skipping the iOS update, these variables are empty strings.
 
-| output name           | description                                                                                                                            |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| **iosId**             | iOS-specific update id                                                                                                                 |
-| **iosGroupId**        | Update group ID that contains one or more platform-specific updates                                                                    |
-| **iosBranchName**     | Branch name that was used when creating this update ([read more](https://docs.expo.dev/eas-update/getting-started/#publish-an-update)) |
-| **iosMessage**        | Custom message to describe the iOS-specific update                                                                                     |
-| **iosRuntimeVersion** | Runtime version used for the iOS-specific update ([read more](https://docs.expo.dev/eas-update/runtime-versions/))                     |
-| **iosQR**             | Absolute URL to the QR code to load this iOS-specific update                                                                           |
-| **iosLink**           | Absolute URL to the iOS-specific update on [expo.dev](https://expo.dev)                                                                |
+| output name              | description                                                                                                                            |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **iosId**                | iOS-specific update id                                                                                                                 |
+| **iosGroupId**           | Update group ID that contains one or more platform-specific updates                                                                    |
+| **iosBranchName**        | Branch name that was used when creating this update ([read more](https://docs.expo.dev/eas-update/getting-started/#publish-an-update)) |
+| **iosManifestPermalink** | Absolute URL to the ios-specific update manifest                                                                                       |
+| **iosMessage**           | Custom message to describe the iOS-specific update                                                                                     |
+| **iosRuntimeVersion**    | Runtime version used for the iOS-specific update ([read more](https://docs.expo.dev/eas-update/runtime-versions/))                     |
+| **iosQR**                | Absolute URL to the QR code to load this iOS-specific update                                                                           |
+| **iosLink**              | Absolute URL to the iOS-specific update on [expo.dev](https://expo.dev)                                                                |
 
 ## Example workflows
 
@@ -120,7 +124,13 @@ You can read more about this in the [GitHub Actions documentation][link-actions]
 ### Create previews on pull requests
 
 This workflow creates a new EAS Update every time a pull request is created or updated.
-Since we're using the `--auto` flag, the EAS branch will be named after the GitHub branch, and the message for the update will match the commit's message.
+We are using the `--auto`, together with the `--branch`, flag in this example.
+
+- `--auto` will automatically create an update using the current git commit message and git branch.
+- `--branch` will overwrite this value inferred from git with our own value.
+
+> **Warning**
+> GitHub Actions might use a temporary merge branch for PRs. To avoid using this merge branch for our update, we overwrite the branch name from `--auto` with our own `--branch` value.
 
 ```yml
 on:
@@ -153,7 +163,9 @@ jobs:
       - name: 🚀 Create preview
         uses: expo/expo-github-action/preview@v8
         with:
-          command: eas update --auto
+          # `github.event.pull_request.head.ref` is only available on `pull_request` triggers.
+          # Use your own, or keep the automatically infered branch name from `--auto`, when using different triggers.
+          command: eas update --auto --branch ${{ github.event.pull_request.head.ref }}
 ```
 
 ### Sending preview information elsewhere
@@ -194,6 +206,8 @@ jobs:
         uses: expo/expo-github-action/preview@v8
         id: preview
         with:
+          # In this example, we use the `push` trigger which will always use the branch name that was pushed to.
+          # By using `--auto` we both use the git commit message and branch name for the update.
           command: eas update --auto
           comment: false
 
@@ -213,6 +227,13 @@ jobs:
 When automating these preview comments, you have to be careful not to spam a pull request on every successful run.
 Every comment contains a generated **message-id** to identify previously made comments and update them instead of creating a new comment.
 
+### Update branch and workflow triggers
+
+GitHub Actions uses slightly different checkout logic for different workflow triggers.
+When using the `push` trigger, GitHub Actions checks out the branch that was pushed to.
+But for [`pull_request` triggers][link-gha-trigger-pull], GitHub Actions might use a temporary branch name.
+This affects in what "branch" your EAS Update is created when using the `--auto` flag.
+
 ### GitHub tokens
 
 When using the GitHub API, you always need to be authenticated.
@@ -228,3 +249,5 @@ You can overwrite the token by adding the `GITHUB_TOKEN` environment variable or
 [code-defaults]: ../src/actions/preview.ts#L10
 [link-actions]: https://help.github.com/en/categories/automating-your-workflow-with-github-actions
 [link-gha-token]: https://docs.github.com/en/actions/security-guides/automatic-token-authentication#permissions-for-the-github_token
+[link-gha-trigger-pull]: https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#pull_request
+[link-gha-trigger-push]: https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#push
